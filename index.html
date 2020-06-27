@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <!-- vue.js -->
+        <script src="https://unpkg.com/vue"></script>
+        <script src="https://unpkg.com/vuex@2.0.0"></script>
+        <!-- leaflet -->
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css"
+        integrity="sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ=="
+        crossorigin=""/>
+        <script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"
+        integrity="sha512-gZwIG9x3wUXg2hdXF6+rVkLF/0Vi9U8D2Ntg4Ga5I5BZpVkVxlJWbSQtXPSiUTtC0TjtGOmxa1AJPuV0CPthew=="
+        crossorigin=""></script>
+        <!-- bootstrap -->
+        <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" rel="stylesheet" 
+        integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
+        <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" rel="stylesheet" >
+        <script src="https://code.jquery.com/jquery-3.4.1.slim.min.js" 
+        integrity="sha384-J6qa4849blE2+poT4WnyKhv5vZF5SrPo0iEjwBvKU7imGFAV0wwj1yYfoRSJoZ+n" crossorigin="anonymous"></script>
+        <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js" 
+        integrity="sha384-wfSDF2E50Y2D1uUdj0O3uMBJnjuUD4Ih7YwaYd1iqfktj0Uod8GCExl3Og8ifwB6" crossorigin="anonymous"></script>
+        <!-- d3js -->
+        <script src="https://d3js.org/d3.v5.min.js"></script>
+        <!-- range slider plugin -->
+        <link rel="stylesheet" href="static/vue_range_slider.css">
+        <script src="static/vue_range_slider.js"></script>
+        <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+        <!-- our code -->
+        <link rel="stylesheet" href="static/style.css"/>
+        <script src="static/utils.js"></script>
+        <script src="static/vo_core.js"></script>
+        <script src="static/vue_components.js"></script>
+        <script src="static/main.js"></script>
+        <script src="static/dialog_callbacks.js"></script>
+        <title>Virtual Orchard</title>
+    </head>
+    <body>
+        <nav class="navbar navbar-dark fixed-top bg-dark flex-md-nowrap p-0 shadow">
+            <a class="navbar-brand col-sm-3 col-md-2 mr-0" href="#">
+              <img src="static/images/logo.png" />
+              Virtual Orchard
+            </a>
+        </nav>
+        <div class="container-fluid">
+            <nav class="col-md-2 d-none d-md-block bg-light sidebar">
+                <div class="sidebar-sticky" id="sidebar-app">
+
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link active" href="#">Map</a>
+                        </li>
+                        <li class="nav-item" v-if="loginState.user_id() === -1">
+                            <a class="nav-link" href="#" data-toggle="modal" data-target="#loginDialog">Login</a>
+                        </li>
+                        <li class="nav-item" v-else>
+                            <a class="nav-link" href="#">User: {{ loginState.username() }}</a>
+                        </li>
+                        <li class="nav-item" v-if="loginState.user_id() !== -1">
+                            <a class="nav-link" href="#" id="logout-button" onClick="VO.loginState.logout()">Logout</a>
+                        </li>
+                        <li class="nav-item" v-if="loginState.user_id() !==-1">
+                            <project-manager v-bind:projects="loginState.project_list"></project-manager>
+                        </li>
+                      <li class="nav-item">
+                        <layer-manager v-bind:layers="layers"></layer-manager>
+                      </li>
+                      <li class="nav-item">
+                          <filter-manager v-bind:properties="properties">
+                          </filter-manager>
+                      </li>
+                      <li class="nav-item">
+                        <location-selector-manager v-bind:coordinates="coordinates"></location-selector-manager>
+                      </li>
+                    </ul>
+                </div>
+            </nav>
+            <main class="col-md-9 ml-sm-auto col-lg-10 px-4" role="main">
+                <div id="mapid" class="col-md-9"></div>
+                <div class="col-md-2 ml-sm-auto col-lg-4">
+                    <div id="vis-panel">
+                        <h5>Visualization</h5>
+                        <div id="vis-app">
+                            <vis-active-tag-selector v-on:input="onActiveTagSelected"></vis-active-tag-selector>
+                            <vis-property-selector v-model="selectedProperty"></vis-property-selector>
+                            <h6>Color hue</h6>
+                            <vis-color-hue-manager :property="selectedProperty" v-on:color-selected="onColorSelected"></vis-color-hue-manager>
+                            <h6>Histogram</h6>
+                            <vis-histogram-app :bin-size="binSize" v-on:bin-size-changed="onBinSizeChanged"></vis-histogram-app>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div> 
+
+        <!-- Modal dialogs -->
+        <div class="modal fade" id="loginDialog" tabindex="" role="dialog" aria-labelledby="loginDialogLabel" aria-hidden="true">
+          <div class="modal-dialog" role="document">
+            <div class="modal-content">
+              <div class="modal-header">
+                  <h5 class="modal-title" id="loginDialogLabel">Login</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+              </div>
+              <div class="modal-body">
+                <div class="form-group">
+                    <label>Username:</label>
+                    <input type="text" class="form-control" id="loginDialogUsername"/>
+                </div>
+                <div class="form-group">
+                    <label>Password:</label>
+                    <input type="password" class="form-control" id="loginDialogPassword"/>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary">Login</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="modal fade" id="addNewProjectDialog" tabindex="" role="dialog" aria-labelledby="addNewProjectDialogLabel" aria-hidden="true">
+          <div class="modal-dialog" role="document">
+            <div class="modal-content">
+              <div class="modal-header">
+                  <h5 class="modal-title" id="addNewProjectDialogLabel">Add New Project</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+              </div>
+              <div class="modal-body">
+                <div class="form-group">
+                    <label>Project Name:</label>
+                    <input type="text" class="form-control" id="addNewProjectDialogProjectName"/>
+                    <label class="error-label" style='display: none'></label>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary">Confirm</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        
+        <div class="modal fade" id="addNewLayerDialog" tabindex="" role="dialog" aria-labelledby="addNewLayerDialogLabel" aria-hidden="true">
+          <div class="modal-dialog" role="document">
+            <div class="modal-content">
+              <div class="modal-header">
+                  <h5 class="modal-title" id="addNewLayerDialogLabel">Add a new layer...</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+              </div>
+              <div class="modal-body">
+                <div class="form-group">
+                  <label>Name:</label>
+                  <input type="text" class="form-control" id="addNewLayerDialogNameText"/>
+                </div>
+                <div class="form-group">
+                  <label>URL:</label>
+                  <input type="text" class="form-control" id="addNewLayerDialogURLText"/>
+                </div>
+                <div class="form-group">
+                  <label>Location: (only for image, in forms of [[x1, y1], [x2, y2]])</label>
+                  <input type="text" class="form-control" id="addNewLayerDialogLocationText"/>
+                </div>
+                <div class="form-group">
+                  <label>Layer Type:</label>
+                  <select class="form-control" id="addNewLayerDialogLayerTypeCombo" name="addNewLayerDialogLayerTypeCombo">
+                    <option value="image">Image</option>
+                    <option value="geojson-polygons">GeoJson - Polygons</option>
+                    <option value="geojson-treestats">GeoJson - Treestats</option>
+                  </select>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <label id="addNewLayerDialogProcessingLabel" style="display: none;">Processing...</label>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="addNewLayerDialogOkBtn">Confirm</button>
+              </div>
+            </div>
+          </div>
+        </div>
+    </body>
+</html>
